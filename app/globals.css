@@ -1,0 +1,88 @@
+:root {
+  --bg: #0b0e14;
+  --bg-panel: #12161f;
+  --bg-panel-raised: #171c28;
+  --border: #232838;
+  --border-bright: #343c54;
+  --text-primary: #e8eaed;
+  --text-muted: #8b93a7;
+  --text-dim: #5a6178;
+  --accent-amber: #ffb020;
+  --accent-amber-dim: #7a5a1e;
+  --accent-green: #4ade80;
+  --accent-red: #f87171;
+
+  --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "JetBrains Mono", ui-monospace, monospace;
+
+  --radius: 3px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font-family: inherit;
+}
+
+::selection {
+  background: var(--accent-amber-dim);
+  color: var(--text-primary);
+}
+
+/* Signature element: a thin sweeping radar line across the header, once on
+   load, then still. Respects reduced-motion. */
+@keyframes sweep {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100vw);
+    opacity: 0;
+  }
+}
+
+.radar-sweep {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-amber), transparent);
+  animation: sweep 2.4s ease-out 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .radar-sweep {
+    animation: none;
+    display: none;
+  }
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.focus-ring:focus-visible {
+  outline: 2px solid var(--accent-amber);
+  outline-offset: 2px;
+}
