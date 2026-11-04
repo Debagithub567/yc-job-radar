@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { pool } from "../db/client.js";
-import { extractListing } from "./worker.js";
+import { extractListing, GeminiRequestError } from "./worker.js";
 
 const BATCH_SIZE = Number(process.argv[2] ?? 25);
 
@@ -14,7 +14,7 @@ interface PendingRow {
   content_hash: string;
 }
 
-async function fetchPendingBatch(): Promise<PendingRow[]> {
+async function fetchPendingBatch(excludedIds: string[]): Promise<PendingRow[]> {
   // "Pending" = never extracted, OR raw content changed since last extraction
   // (extracted_from_hash != current content_hash). This is the whole dedup
   // guarantee for the extraction stage: unchanged listings never re-hit the API.
@@ -23,9 +23,10 @@ async function fetchPendingBatch(): Promise<PendingRow[]> {
             r.description_md, r.skills, r.content_hash
      FROM raw_listings r
      LEFT JOIN extracted_listings e ON e.object_id = r.object_id
-     WHERE e.object_id IS NULL OR e.extracted_from_hash != r.content_hash
+     WHERE (e.object_id IS NULL OR e.extracted_from_hash != r.content_hash)
+       AND NOT (r.object_id = ANY($2::text[]))
      LIMIT $1`,
-    [BATCH_SIZE]
+    [BATCH_SIZE, excludedIds]
   );
   return rows;
 }
@@ -33,9 +34,10 @@ async function fetchPendingBatch(): Promise<PendingRow[]> {
 async function run() {
   let totalDone = 0;
   let totalFailed = 0;
+  const failedIds = new Set<string>();
 
   while (true) {
-    const batch = await fetchPendingBatch();
+    const batch = await fetchPendingBatch([...failedIds]);
     if (batch.length === 0) break;
 
     console.log(`Extracting batch of ${batch.length}...`);
@@ -76,9 +78,11 @@ async function run() {
 
         totalDone++;
       } catch (err) {
-        // Fail loud per-row, keep the batch moving — one bad listing shouldn't
-        // block the other 24. Flagged rows just stay "pending" and get retried
-        // next run.
+        // API failures usually affect every row; stop rather than burning
+        // through the full database with the same bad key or service error.
+        if (err instanceof GeminiRequestError) throw err;
+        // A malformed individual response can be tried again on the next run.
+        failedIds.add(row.object_id);
         console.error(`Extraction failed for ${row.object_id} (${row.title}):`, err);
         totalFailed++;
       }

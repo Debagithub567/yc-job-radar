@@ -17,7 +17,7 @@ Legal note at the bottom before making this public.
    Unchanged listings are skipped entirely on re-ingest. Changed listings
    overwrite in place. New listings insert fresh.
         ↓
-[Claude extraction worker — Haiku, forced tool-use]
+[Gemini extraction worker — structured JSON]
    Only classifies what the structured data can't give us: role_category,
    seniority, ai_integration_depth, interview_process_summary. Re-runs only
    when extracted_from_hash != raw_listings.content_hash.
@@ -25,15 +25,18 @@ Legal note at the bottom before making this public.
 [extracted_listings — Postgres]
         ↓
 [Next.js dashboard]
-   Filter by role / employment type / seniority / AI depth → every query
-   (/api/aggregate, /api/listings) runs fresh against the full matching set,
-   so nothing is double-counted or dropped.
+   Reads local Postgres. Imported listings appear before AI extraction;
+   seniority and AI depth are available after extraction.
 ```
 
 ## Setup
 
-1. **Postgres**: create a database, then set `DATABASE_URL` in `.env`
-   (copy from `.env.example`).
+1. **Postgres**: start a local Postgres server, then set `DATABASE_URL` in
+   `.env` (copy from `.env.example`). For a new local Docker container:
+   ```bash
+   docker run --name yc-jobs-db -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:16
+   ```
+   On later runs, use `docker start yc-jobs-db`.
    ```bash
    npm run db:migrate
    ```
@@ -46,28 +49,35 @@ Legal note at the bottom before making this public.
    the same one your browser uses — but it may be domain-restricted or
    rotate over time, so re-capture it if ingestion starts 403ing.
 
-3. **Anthropic API key**: set `ANTHROPIC_API_KEY` in `.env`.
+3. **Gemini API key**: set your own `GEMINI_API_KEY` in `.env`. The extraction
+   script needs a working key; the dashboard can display imported jobs without it.
 
 4. **Ingest**:
    ```bash
    npm run ingest        # defaults to filter "(role:eng)"
    npm run ingest "(role:design)"   # or any other Algolia filter string
    ```
-   Safe to re-run any time — it resumes from the last checkpointed page and
-   skips unchanged listings automatically.
+   The script resumes a recent unfinished crawl and starts a fresh crawl after
+   a completed one or a checkpoint older than a day. It skips unchanged
+   listings automatically.
 
 5. **Extract**:
    ```bash
    npm run extract       # processes 25 pending rows at a time until none remain
    ```
    Only processes rows that are new or whose content changed since the last
-   extraction — never reprocesses (and never re-bills) unchanged listings.
+   extraction. The dashboard's AI and seniority filters need these results.
 
 6. **Dashboard**:
    ```bash
    npm run dev
    ```
    Open `localhost:3000`.
+
+The role buttons filter imported data already in Postgres. They do not trigger
+an Algolia request. Run `npm run ingest` to refresh from YC, then
+`npm run extract` to update the AI analysis. The dashboard shows the most recent
+import date so you can spot stale data.
 
 ## Red flags this design already accounts for
 

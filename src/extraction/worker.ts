@@ -10,13 +10,20 @@ import {
 // tool_choice, just Gemini's flavor of it: guaranteed-shaped JSON back,
 // no markdown-fence stripping, no free-text parsing.
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const MODEL = process.env.EXTRACTION_MODEL ?? "gemini-2.0-flash";
+const MODEL = process.env.EXTRACTION_MODEL ?? "gemini-3.6-flash";
 const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
 if (!GEMINI_API_KEY) {
   throw new Error(
     "Missing GEMINI_API_KEY. Copy .env.example to .env and paste your free Gemini API key from https://aistudio.google.com/apikey"
   );
+}
+
+export class GeminiRequestError extends Error {
+  constructor(public readonly status: number, message: string) {
+    super(`Gemini request failed (HTTP ${status}): ${message}`);
+    this.name = "GeminiRequestError";
+  }
 }
 
 export interface ListingInput {
@@ -47,8 +54,8 @@ export async function extractListing(input: ListingInput): Promise<ExtractedList
     });
 
     if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Gemini request failed: ${res.status} ${res.statusText} -- ${body}`);
+      const body = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+      throw new GeminiRequestError(res.status, body?.error?.message ?? res.statusText);
     }
 
     const data = (await res.json()) as {
@@ -65,6 +72,10 @@ export async function extractListing(input: ListingInput): Promise<ExtractedList
   try {
     return await attempt();
   } catch (err) {
+    // Bad credentials, invalid model, and rate limits need operator action.
+    if (err instanceof GeminiRequestError && [400, 401, 403, 404, 429].includes(err.status)) {
+      throw err;
+    }
     console.warn("Extraction attempt 1 failed, retrying once:", err);
     return await attempt(); // let this one throw if it fails again -- caller flags for manual review
   }

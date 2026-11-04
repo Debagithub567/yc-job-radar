@@ -12,7 +12,7 @@ const ROLE_CATEGORIES = [
 const JOB_TYPES = [
   { value: "fulltime", label: "Full-time" },
   { value: "contract", label: "Contract" },
-  { value: "internship", label: "Internship" },
+  { value: "intern", label: "Internship" },
 ];
 
 const SENIORITY = [

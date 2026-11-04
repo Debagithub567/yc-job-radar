@@ -9,17 +9,22 @@ import { pool } from "./db/client.js";
 // filtering to a specific eng_type happens at query time in the dashboard, not here.
 const FILTER = process.argv[2] ?? "(role:eng)";
 const FILTER_KEY = FILTER; // used as the checkpoint row key
+const CHECKPOINT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 function hashDescription(description: string): string {
   return createHash("sha256").update(description).digest("hex");
 }
 
-async function getCheckpoint(): Promise<number> {
+async function getCheckpoint(): Promise<{
+  last_page_fetched: number;
+  total_pages: number | null;
+  updated_at: Date;
+} | null> {
   const { rows } = await pool.query(
-    `SELECT last_page_fetched FROM ingest_checkpoints WHERE filter_key = $1`,
+    `SELECT last_page_fetched, total_pages, updated_at FROM ingest_checkpoints WHERE filter_key = $1`,
     [FILTER_KEY]
   );
-  return rows.length ? rows[0].last_page_fetched : -1;
+  return rows[0] ?? null;
 }
 
 async function saveCheckpoint(page: number, totalPages: number) {
@@ -97,8 +102,14 @@ async function upsertListing(hit: AlgoliaJobHit) {
 
 async function run() {
   console.log(`Starting ingest with filter: ${FILTER}`);
-  const startPage = (await getCheckpoint()) + 1;
-  if (startPage > 0) {
+  const checkpoint = await getCheckpoint();
+  let startPage = (checkpoint?.last_page_fetched ?? -1) + 1;
+  const checkpointIsStale = checkpoint &&
+    Date.now() - new Date(checkpoint.updated_at).getTime() > CHECKPOINT_MAX_AGE_MS;
+  if (checkpointIsStale || (checkpoint?.total_pages != null && startPage >= checkpoint.total_pages)) {
+    startPage = 0;
+    console.log("Previous crawl completed or checkpoint is stale; refreshing from page 1");
+  } else if (startPage > 0) {
     console.log(`Resuming from page ${startPage} (checkpoint found)`);
   }
 

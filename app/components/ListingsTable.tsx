@@ -3,6 +3,7 @@
 interface Listing {
   object_id: string;
   title: string;
+  source_url: string | null;
   company_name: string | null;
   job_type: string | null;
   remote: string | null;
@@ -36,7 +37,15 @@ export function ListingsTable({ listings }: { listings: Listing[] }) {
           }}
         >
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 600, fontSize: "14px" }}>{l.title}</div>
+            <div style={{ fontWeight: 600, fontSize: "14px" }}>
+              {l.source_url?.startsWith("https://www.ycombinator.com/") ? (
+                <a href={l.source_url} target="_blank" rel="noopener noreferrer">
+                  {l.title}
+                </a>
+              ) : (
+                l.title
+              )}
+            </div>
             <div
               style={{
                 color: "var(--text-muted)",
@@ -52,7 +61,7 @@ export function ListingsTable({ listings }: { listings: Listing[] }) {
           <Tag>{l.job_type ?? "—"}</Tag>
           <Tag>{l.seniority ?? "—"}</Tag>
           <Tag accent={l.ai_integration_depth === "ai_native" || l.ai_integration_depth === "core_to_role"}>
-            {l.ai_integration_depth ?? "—"}
+            {l.ai_integration_depth ?? "AI pending"}
           </Tag>
         </div>
       ))}

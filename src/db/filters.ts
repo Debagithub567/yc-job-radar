@@ -10,6 +10,16 @@ export interface ParsedFilters {
   aiDepth: string | null;
 }
 
+// Algolia supplies these role tags before the AI extraction worker runs.
+const SOURCE_ROLE_CODES: Record<string, string[]> = {
+  backend: ["be"],
+  frontend: ["fe"],
+  fullstack: ["fs"],
+  forward_deployed: ["forward_deployed", "fde"],
+  devops_infra: ["devops"],
+  data_ml: ["ml", "data_sci", "ai"],
+};
+
 export function parseFilters(searchParams: URLSearchParams): ParsedFilters {
   const roleCategories = (searchParams.get("role_category") ?? "")
     .split(",")
@@ -27,8 +37,8 @@ export function parseFilters(searchParams: URLSearchParams): ParsedFilters {
 
 /**
  * Builds "WHERE ..." (or "" if no filters) plus the params array, starting at $1.
- * Always joins extracted_listings e + raw_listings r, so callers can reference
- * either table's columns in what they select.
+ * Callers join raw_listings r with extracted_listings e, so imported jobs can
+ * still match source role tags before AI classification is available.
  */
 export function buildWhereClause(filters: ParsedFilters): { where: string; params: unknown[] } {
   const clauses: string[] = [];
@@ -36,7 +46,13 @@ export function buildWhereClause(filters: ParsedFilters): { where: string; param
 
   if (filters.roleCategories.length) {
     params.push(filters.roleCategories);
-    clauses.push(`e.role_category = ANY($${params.length})`);
+    const classifiedParam = params.length;
+    params.push(filters.roleCategories.flatMap((role) => SOURCE_ROLE_CODES[role] ?? []));
+    const sourceParam = params.length;
+    clauses.push(
+      `(e.role_category = ANY($${classifiedParam}::text[]) OR ` +
+        `(e.object_id IS NULL AND r.eng_type && $${sourceParam}::text[]))`
+    );
   }
   if (filters.jobTypes.length) {
     params.push(filters.jobTypes);
