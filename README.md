@@ -92,12 +92,3 @@ import date so you can spot stale data.
   extraction stages (see architecture above).
 - **Crash mid-crawl** → `ingest_checkpoints` table resumes from the last
   completed page, not page 0.
-
-## Legal note
-
-This hits Algolia's public, browser-facing search endpoint at low volume for
-personal use — not LinkedIn, not a scraper fighting anti-bot measures. That's
-a meaningfully different risk profile than running a public product at scale.
-Keep it personal (not deployed publicly, not redistributing YC's data) unless
-you've separately worked through the legal side of making it a public tool.
-# yc-job-radar
