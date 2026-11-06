@@ -79,16 +79,4 @@ an Algolia request. Run `npm run ingest` to refresh from YC, then
 `npm run extract` to update the AI analysis. The dashboard shows the most recent
 import date so you can spot stale data.
 
-## Red flags this design already accounts for
 
-- **Algolia key stops working** → re-capture from DevTools, it's a config
-  value not a code change.
-- **Rate limiting** → ingestion already waits `ALGOLIA_REQUEST_DELAY_MS`
-  (default 400ms) between pages.
-- **YC changes their data shape** → all Algolia fields are typed as optional
-  in `src/algolia/types.ts` with a catch-all index signature, so an added or
-  removed field won't crash ingestion.
-- **Duplicate/reprocessed data** → content-hash dedup at both the ingest and
-  extraction stages (see architecture above).
-- **Crash mid-crawl** → `ingest_checkpoints` table resumes from the last
-  completed page, not page 0.
